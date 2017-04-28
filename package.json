@@ -1,0 +1,25 @@
+{
+  "name": "redux-indexers",
+  "version": "1.0.0",
+  "description": "Immutable, indexed data store without fancy container wrapper classes.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corps/redux-indexers.git"
+  },
+  "keywords": [
+    "immutable",
+    "bisect",
+    "indexer",
+    "redux"
+  ],
+  "author": "Zach Collins <recursive.cookie.jar@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/corps/redux-indexers/issues"
+  },
+  "homepage": "https://github.com/corps/redux-indexers#readme"
+}
