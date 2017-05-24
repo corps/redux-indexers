@@ -17,7 +17,7 @@ let
     installPhase = ''
       mkdir $out
       mv ./* $out/
-      cp -r $out ${toString lockDir}
+      echo "To install the lockDir: cp -r $out ${toString lockDir}"
     '';
   };
   lockedPackages = if builtins.pathExists lockDir
