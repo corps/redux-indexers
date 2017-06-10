@@ -99,13 +99,15 @@ test("add / remove", function () {
     var cup3 = smallerCupThan(similarCup(cup2));
     var cup4 = largeCupThan(largeCupThan(cup1));
     var cup5 = largeCupThan(largeCupThan(cup3));
+    var overwrittenCup3 = __assign({}, cup3);
+    overwrittenCup3.size = 5000;
     assertReferenceChanges(indexer.update(indexes, [cup2]));
     assert.notStrictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
     assertReferenceChanges(indexer.update(indexes, [cup1]));
     assert.notStrictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
     assertReferenceChanges(indexer.update(indexes, [cup4]));
     assert.notStrictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
-    assertReferenceChanges(indexer.update(indexes, [cup3]));
+    assertReferenceChanges(indexer.update(indexes, [overwrittenCup3, cup3]));
     assert.strictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
     var loaded = indexes;
     assertReferenceDoesNotChange(indexer.removeByPk(indexes, [cup5.id]));
@@ -170,7 +172,12 @@ test("update managing indexes", function () {
     var cup5 = smallerCupThan(cup2);
     var cup6 = largeCupThan(cup3);
     var cup7 = largeCupThan(cup6);
-    assertReferenceChanges(indexer.update(indexes, [cup2, cup6, cup2, cup4, cup3, cup5, cup5, cup5, cup7, cup3, cup1]));
+    var unusedCup2 = shrinkCup(cup2);
+    var unusedCup22 = shrinkCup(unusedCup2);
+    var unusedCup5 = __assign({}, cup5);
+    unusedCup5.size = 9999;
+    assertReferenceChanges(indexer.update(indexes, [unusedCup2, cup6, unusedCup22, cup4,
+        cup2, cup3, cup5, unusedCup5, cup5, cup7, cup3, cup1]));
     assert.deepEqual(accumulate(indexes.byId), [cup1, cup2, cup3, cup4, cup5, cup6, cup7]);
     assert.deepEqual(accumulate(indexes.byColorAndSize), [cup1, cup4, cup5, cup2, cup3, cup6, cup7]);
     assert.deepEqual(accumulate(indexes.bySize), [cup5, cup1, cup2, cup3, cup4, cup6, cup7]);

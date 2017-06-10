@@ -121,6 +121,8 @@ test("add / remove", () => {
   const cup3 = smallerCupThan(similarCup(cup2));
   const cup4 = largeCupThan(largeCupThan(cup1));
   const cup5 = largeCupThan(largeCupThan(cup3));
+  const overwrittenCup3 = {...cup3};
+  overwrittenCup3.size = 5000;
 
   assertReferenceChanges(indexer.update(indexes, [cup2]));
   assert.notStrictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
@@ -131,7 +133,7 @@ test("add / remove", () => {
   assertReferenceChanges(indexer.update(indexes, [cup4]));
   assert.notStrictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
 
-  assertReferenceChanges(indexer.update(indexes, [cup3]));
+  assertReferenceChanges(indexer.update(indexes, [overwrittenCup3, cup3]));
   assert.strictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
 
   let loaded = indexes;
@@ -226,7 +228,13 @@ test("update managing indexes", () => {
   let cup6 = largeCupThan(cup3);
   let cup7 = largeCupThan(cup6);
 
-  assertReferenceChanges(indexer.update(indexes, [cup2, cup6, cup2, cup4, cup3, cup5, cup5, cup5, cup7, cup3, cup1]));
+  let unusedCup2 = shrinkCup(cup2);
+  let unusedCup22 = shrinkCup(unusedCup2);
+  let unusedCup5 = {...cup5};
+  unusedCup5.size = 9999;
+
+  assertReferenceChanges(indexer.update(indexes, [unusedCup2, cup6, unusedCup22, cup4,
+    cup2, cup3, cup5, unusedCup5, cup5, cup7, cup3, cup1]));
 
   assert.deepEqual(accumulate(indexes.byId), [cup1, cup2, cup3, cup4, cup5, cup6, cup7]);
   assert.deepEqual(accumulate(indexes.byColorAndSize), [cup1, cup4, cup5, cup2, cup3, cup6, cup7]);

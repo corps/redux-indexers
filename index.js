@@ -96,37 +96,23 @@ var Indexer = (function () {
         return result;
     };
     Indexer.prototype.removeAll = function (indexes, values) {
-        var _this = this;
-        if (values.length === 0)
-            return indexes;
-        var oldIndexes = indexes;
-        indexes = __assign({}, indexes);
-        var mainIndexName = this.mainIndexName;
-        values.forEach(function (v) {
-            var existing = Indexer.getFirstMatching(indexes[mainIndexName], _this.strictValueKeyOf(mainIndexName, v));
-            if (existing)
-                _this.updateValue(indexes, oldIndexes, existing, false);
-        });
-        return indexes;
+        return this.splice(indexes, values, []);
     };
     Indexer.prototype.removeByPk = function (indexes, primaryKey) {
         return this.removeAll(indexes, Indexer.getAllMatching(indexes[this.mainIndexName], primaryKey));
     };
     Indexer.prototype.update = function (indexes, values) {
         var _this = this;
-        if (values.length === 0)
-            return indexes;
-        var oldIndexes = indexes;
-        indexes = __assign({}, indexes);
-        var mainIndexName = this.mainIndexName;
-        values.forEach(function (v) {
-            var existing = Indexer.getFirstMatching(indexes[mainIndexName], _this.strictValueKeyOf(mainIndexName, v));
-            if (existing) {
-                _this.updateValue(indexes, oldIndexes, existing, false);
-            }
-            _this.updateValue(indexes, oldIndexes, v, true);
+        var oldValues = [];
+        var newValues = [];
+        var uniqueValues = uniqueIndex(this.indexKeyers[this.mainIndexName], values);
+        uniqueValues.forEach(function (v) {
+            var existing = _this.getByPk(indexes, v[0]);
+            if (existing)
+                oldValues.push(existing);
+            newValues.push(v[1]);
         });
-        return indexes;
+        return this.splice(indexes, oldValues, newValues);
     };
     Indexer.iterator = function (index, startKey, endKey) {
         if (startKey === void 0) { startKey = null; }
@@ -189,41 +175,57 @@ var Indexer = (function () {
         var iter = Indexer.iterator(index, key, key.concat([Infinity]));
         return iter();
     };
-    Indexer.prototype.updateGroupIndex = function (indexes, oldIndexes, value, indexName, groupIndexName) {
-        var groupKeyer = this.indexGroupKeyers[indexName];
-        var reducer = this.indexReducers[indexName];
-        var groupKeyset = groupKeyer(value);
-        var prevGroupIndex = oldIndexes[groupIndexName];
-        var iter = Indexer.iterator(prevGroupIndex, groupKeyset, groupKeyset.concat([Infinity]));
-        var reverseIter = Indexer.reverseIter(prevGroupIndex, groupKeyset.concat([Infinity]), groupKeyset);
-        var remove = reducer(iter, reverseIter);
-        var curGroupIndex = indexes[groupIndexName];
-        iter = Indexer.iterator(curGroupIndex, groupKeyset, groupKeyset.concat([Infinity]));
-        reverseIter = Indexer.reverseIter(curGroupIndex, groupKeyset.concat([Infinity]), groupKeyset);
-        var add = reducer(iter, reverseIter);
-        if (remove === add)
-            return;
-        if (remove)
-            this.removeFromIndex(indexes, oldIndexes, indexName, remove);
-        if (add)
-            this.addToIndex(indexes, oldIndexes, indexName, add);
-    };
-    Indexer.prototype.updateValue = function (indexes, oldIndexes, value, isAdd) {
+    Indexer.prototype.splice = function (indexes, removeValues, addValues) {
+        var oldIndexes = indexes;
+        if (!removeValues.length && !addValues.length) {
+            return indexes;
+        }
+        indexes = __assign({}, indexes);
         for (var _i = 0, _a = this.indexes; _i < _a.length; _i++) {
             var indexName = _a[_i];
+            var index = indexes[indexName];
+            var valuesToRemove = removeValues;
+            var valuesToAdd = addValues;
             var groupIndexName = this.indexDependentGroup[indexName];
             if (groupIndexName) {
-                this.updateGroupIndex(indexes, oldIndexes, value, indexName, groupIndexName);
+                var groupKeyer = this.indexGroupKeyers[indexName];
+                var reducer = this.indexReducers[indexName];
+                var updateGroups = uniqueIndex(groupKeyer, valuesToRemove.concat(valuesToAdd));
+                valuesToRemove = [];
+                valuesToAdd = [];
+                for (var _b = 0, updateGroups_1 = updateGroups; _b < updateGroups_1.length; _b++) {
+                    var updateGroup = updateGroups_1[_b];
+                    var updateGroupKey = updateGroup[0];
+                    var prevGroupIndex = oldIndexes[groupIndexName];
+                    var iter = Indexer.iterator(prevGroupIndex, updateGroupKey, updateGroupKey.concat([Infinity]));
+                    var reverseIter = Indexer.reverseIter(prevGroupIndex, updateGroupKey.concat([Infinity]), updateGroupKey);
+                    var remove = reducer(iter, reverseIter);
+                    var curGroupIndex = indexes[groupIndexName];
+                    iter = Indexer.iterator(curGroupIndex, updateGroupKey, updateGroupKey.concat([Infinity]));
+                    reverseIter = Indexer.reverseIter(curGroupIndex, updateGroupKey.concat([Infinity]), updateGroupKey);
+                    var add = reducer(iter, reverseIter);
+                    if (remove === add)
+                        continue;
+                    if (remove)
+                        valuesToRemove.push(remove);
+                    if (add)
+                        valuesToAdd.push(add);
+                }
             }
-            else {
-                if (isAdd) {
-                    this.addToIndex(indexes, oldIndexes, indexName, value);
-                }
-                else {
-                    this.removeFromIndex(indexes, oldIndexes, indexName, value);
-                }
+            if (!valuesToAdd.length && !valuesToRemove.length) {
+                continue;
+            }
+            index = indexes[indexName] = indexes[indexName].slice();
+            for (var _c = 0, valuesToRemove_1 = valuesToRemove; _c < valuesToRemove_1.length; _c++) {
+                var value = valuesToRemove_1[_c];
+                this.removeFromIndex(index, indexName, value);
+            }
+            for (var _d = 0, valuesToAdd_1 = valuesToAdd; _d < valuesToAdd_1.length; _d++) {
+                var value = valuesToAdd_1[_d];
+                this.addToIndex(index, indexName, value);
             }
         }
+        return indexes;
     };
     Indexer.prototype.strictValueKeyOf = function (indexName, value) {
         var pk = this.indexKeyers[this.mainIndexName](value);
@@ -234,20 +236,12 @@ var Indexer = (function () {
         Array.prototype.push.apply(indexKey, pk);
         return indexKey;
     };
-    Indexer.prototype.addToIndex = function (indexes, oldIndexes, indexName, v) {
-        var index = indexes[indexName];
-        if (index === oldIndexes[indexName]) {
-            index = indexes[indexName] = index.slice();
-        }
+    Indexer.prototype.addToIndex = function (index, indexName, v) {
         var key = this.strictValueKeyOf(indexName, v);
         var startIdx = Indexer.getRangeFrom(index, key).startIdx;
         index.splice(startIdx, 0, [key, v]);
     };
-    Indexer.prototype.removeFromIndex = function (indexes, oldIndexes, indexName, v) {
-        var index = indexes[indexName];
-        if (index === oldIndexes[indexName]) {
-            index = indexes[indexName] = index.slice();
-        }
+    Indexer.prototype.removeFromIndex = function (index, indexName, v) {
         var key = this.strictValueKeyOf(indexName, v);
         var _a = Indexer.getRangeFrom(index, key, key.concat([null])), startIdx = _a.startIdx, endIdx = _a.endIdx;
         index.splice(startIdx, endIdx - startIdx);
@@ -255,3 +249,13 @@ var Indexer = (function () {
     return Indexer;
 }());
 exports.Indexer = Indexer;
+function uniqueIndex(keyer, values) {
+    var result = [];
+    for (var _i = 0, values_1 = values; _i < values_1.length; _i++) {
+        var value = values_1[_i];
+        var key = keyer(value);
+        var _a = Indexer.getRangeFrom(result, key, key.concat([null])), startIdx = _a.startIdx, endIdx = _a.endIdx;
+        result.splice(startIdx, endIdx - startIdx, [key, value]);
+    }
+    return result;
+}
