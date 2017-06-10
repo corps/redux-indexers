@@ -102,7 +102,21 @@ export class Indexer<V, I extends IndexStore<V>> {
   }
 
   removeAll(indexes: I, values: V[]) {
-    return this.splice(indexes, values, []);
+    if (values.length === 0) return indexes;
+
+    let oldIndexes = indexes;
+    indexes = {...(indexes as any)};
+
+    const mainIndexName = this.mainIndexName;
+
+    values.forEach(v => {
+      let existing = Indexer.getFirstMatching(indexes[mainIndexName],
+        this.strictValueKeyOf(mainIndexName, v));
+
+      if (existing) this.updateValue(indexes, oldIndexes, existing, false);
+    });
+
+    return indexes;
   }
 
   removeByPk(indexes: I, primaryKey: any[]): I {
@@ -110,13 +124,24 @@ export class Indexer<V, I extends IndexStore<V>> {
   }
 
   update(indexes: I, values: V[]): I {
-    let oldValues = [] as V[];
+    if (values.length === 0) return indexes;
 
-    values.forEach(value => Array.prototype.push.apply(oldValues, Indexer.getAllMatching(
-      indexes[this.mainIndexName], this.strictValueKeyOf(this.mainIndexName, value)
-    )));
+    let oldIndexes = indexes;
+    indexes = {...(indexes as any)};
+    const mainIndexName = this.mainIndexName;
 
-    return this.splice(indexes, oldValues, values);
+    values.forEach(v => {
+      let existing = Indexer.getFirstMatching(indexes[mainIndexName],
+        this.strictValueKeyOf(mainIndexName, v));
+
+      if (existing) {
+        this.updateValue(indexes, oldIndexes, existing, false);
+      }
+
+      this.updateValue(indexes, oldIndexes, v, true);
+    });
+
+    return indexes;
   }
 
   static iterator<V>(index: Index<V>, startKey: any[] = null, endKey: any[] = null): IndexIterator<V> {
@@ -179,69 +204,54 @@ export class Indexer<V, I extends IndexStore<V>> {
     return iter();
   }
 
-  private splice(indexes: I, removeValues: V[], addValues: V[]) {
-    let oldIndexes = indexes;
-    if (!removeValues.length && !addValues.length) {
-      return indexes;
-    }
+  private updateGroupIndex(indexes: I, oldIndexes: I, value: V, indexName: string, groupIndexName: string) {
+    let groupKeyer = this.indexGroupKeyers[indexName];
+    let reducer = this.indexReducers[indexName];
 
-    indexes = {...(indexes as any)};
+    let groupKeyset = groupKeyer(value);
+
+    const prevGroupIndex = oldIndexes[groupIndexName];
+    let iter = Indexer.iterator(prevGroupIndex,
+      groupKeyset,
+      groupKeyset.concat([Infinity]));
+    let reverseIter = Indexer.reverseIter(prevGroupIndex,
+      groupKeyset.concat([Infinity]),
+      groupKeyset);
+    let remove = reducer(iter, reverseIter);
+
+    const curGroupIndex = indexes[groupIndexName];
+    iter = Indexer.iterator(curGroupIndex,
+      groupKeyset,
+      groupKeyset.concat([Infinity]));
+    reverseIter = Indexer.reverseIter(curGroupIndex,
+      groupKeyset.concat([Infinity]),
+      groupKeyset);
+    let add = reducer(iter, reverseIter);
+
+    if (remove === add) return;
+
+    if (remove) this.removeFromIndex(indexes, oldIndexes, indexName, remove);
+    if (add) this.addToIndex(indexes, oldIndexes, indexName, add);
+  }
+
+  private updateValue(indexes: I,
+                      oldIndexes: I,
+                      value: V,
+                      isAdd: boolean) {
 
     for (let indexName of this.indexes) {
-      let index = indexes[indexName];
-      let valuesToRemove = removeValues;
-      let valuesToAdd = addValues;
-
       const groupIndexName = this.indexDependentGroup[indexName];
+
       if (groupIndexName) {
-        let groupKeyer = this.indexGroupKeyers[indexName];
-        let reducer = this.indexReducers[indexName];
-
-        let updateGroupKeys = getUniqueKeys(groupKeyer, valuesToRemove.concat(valuesToAdd));
-        valuesToRemove = [];
-        valuesToAdd = [];
-
-        for (let groupKeyset of updateGroupKeys) {
-          const prevGroupIndex = oldIndexes[groupIndexName];
-          let iter = Indexer.iterator(prevGroupIndex,
-            groupKeyset,
-            groupKeyset.concat([Infinity]));
-          let reverseIter = Indexer.reverseIter(prevGroupIndex,
-            groupKeyset.concat([Infinity]),
-            groupKeyset);
-          let remove = reducer(iter, reverseIter);
-
-          const curGroupIndex = indexes[groupIndexName];
-          iter = Indexer.iterator(curGroupIndex,
-            groupKeyset,
-            groupKeyset.concat([Infinity]));
-          reverseIter = Indexer.reverseIter(curGroupIndex,
-            groupKeyset.concat([Infinity]),
-            groupKeyset);
-          let add = reducer(iter, reverseIter);
-
-          if (remove === add) continue;
-          if (remove) valuesToRemove.push(remove);
-          if (add) valuesToAdd.push(add);
+        this.updateGroupIndex(indexes, oldIndexes, value, indexName, groupIndexName);
+      } else {
+        if (isAdd) {
+          this.addToIndex(indexes, oldIndexes, indexName, value);
+        } else {
+          this.removeFromIndex(indexes, oldIndexes, indexName, value);
         }
       }
-
-      if (!valuesToAdd.length && !valuesToRemove.length) {
-        continue;
-      }
-
-      index = indexes[indexName] = indexes[indexName].slice();
-
-      for (let value of valuesToRemove) {
-        this.removeRangeFrom(index, this.strictValueKeyOf(indexName, value));
-      }
-
-      for (let value of valuesToAdd) {
-        this.addTo(index, indexName, value);
-      }
     }
-
-    return indexes;
   }
 
   private strictValueKeyOf(indexName: keyof I, value: V): any[] {
@@ -256,21 +266,25 @@ export class Indexer<V, I extends IndexStore<V>> {
     return indexKey;
   }
 
-  private addTo(index: Index<V>,
-                indexName: keyof I,
-                v: V): Index<V> {
+  private addToIndex(indexes: I, oldIndexes: I, indexName: keyof I, v: V) {
+    let index = indexes[indexName];
+    if (index === oldIndexes[indexName]) {
+      index = indexes[indexName] = index.slice();
+    }
+
     let key = this.strictValueKeyOf(indexName, v);
     let {startIdx} = Indexer.getRangeFrom(index, key);
-
     index.splice(startIdx, 0, [key, v]);
-
-    return index;
   }
 
-  private removeRangeFrom(index: Index<any>,
-                          key: any[],) {
-    let {startIdx, endIdx} = Indexer.getRangeFrom(index, key, key.concat([Infinity]));
-    if (endIdx <= startIdx) return index;
+  private removeFromIndex(indexes: I, oldIndexes: I, indexName: keyof I, v: V) {
+    let index = indexes[indexName];
+    if (index === oldIndexes[indexName]) {
+      index = indexes[indexName] = index.slice();
+    }
+
+    let key = this.strictValueKeyOf(indexName, v);
+    let {startIdx, endIdx} = Indexer.getRangeFrom(index, key, key.concat([null]));
     index.splice(startIdx, endIdx - startIdx);
   }
 }

@@ -134,6 +134,8 @@ test("add / remove", () => {
   assertReferenceChanges(indexer.update(indexes, [cup3]));
   assert.strictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
 
+  let loaded = indexes;
+
   assertReferenceDoesNotChange(indexer.removeByPk(indexes, [cup5.id]));
 
   assert.deepEqual(accumulate(indexes.byId), [cup1, cup2, cup3, cup4], "keeps cups organized by id");
@@ -191,6 +193,13 @@ test("add / remove", () => {
     [],
     "keeps cups organized by size of per color biggest");
   assert.notStrictEqual(indexes.bySizeOfColorBiggest, previousIndexes.bySizeOfColorBiggest);
+
+  indexes = loaded;
+  assertReferenceChanges(indexer.removeAll(indexes, [cup5, cup1, cup2, cup1, cup2]));
+  assert.deepEqual(accumulate(indexes.byId), [cup3, cup4], "keeps cups organized by id");
+  assert.deepEqual(accumulate(indexes.byColorAndSize), [cup4, cup3], "keeps cups organized by color and size");
+  assert.deepEqual(accumulate(indexes.bySize), [cup3, cup4], "keeps cups organized by size");
+  assert.deepEqual(accumulate(indexes.bySizeOfColorBiggest), [cup3, cup4], "keeps cups organized by size of per color biggest");
 });
 
 test("getByPk", () => {
@@ -217,20 +226,21 @@ test("update managing indexes", () => {
   let cup6 = largeCupThan(cup3);
   let cup7 = largeCupThan(cup6);
 
-  assertReferenceChanges(indexer.update(indexes, [cup2, cup6, cup4, cup3, cup5, cup7, cup1]));
+  assertReferenceChanges(indexer.update(indexes, [cup2, cup6, cup2, cup4, cup3, cup5, cup5, cup5, cup7, cup3, cup1]));
 
   assert.deepEqual(accumulate(indexes.byId), [cup1, cup2, cup3, cup4, cup5, cup6, cup7]);
   assert.deepEqual(accumulate(indexes.byColorAndSize), [cup1, cup4, cup5, cup2, cup3, cup6, cup7]);
   assert.deepEqual(accumulate(indexes.bySize), [cup5, cup1, cup2, cup3, cup4, cup6, cup7]);
 
+  let oldCup4 = cup4;
   cup4 = shrinkCup(shrinkCup(cup4));
-  assertReferenceChanges(indexer.update(indexes, [cup4]));
+  assertReferenceChanges(indexer.update(indexes, [oldCup4, cup4]));
   assert.deepEqual(accumulate(indexes.byId), [cup1, cup2, cup3, cup4, cup5, cup6, cup7]);
   assert.deepEqual(accumulate(indexes.byColorAndSize), [cup4, cup1, cup5, cup2, cup3, cup6, cup7]);
   assert.deepEqual(accumulate(indexes.bySize), [cup4, cup5, cup1, cup2, cup3, cup6, cup7]);
 
   cup7 = shareColorWith(cup7, cup4);
-  assertReferenceChanges(indexer.update(indexes, [cup7]));
+  assertReferenceChanges(indexer.update(indexes, [cup2, cup7, cup7]));
   assert.deepEqual(accumulate(indexes.byId), [cup1, cup2, cup3, cup4, cup5, cup6, cup7]);
   assert.deepEqual(accumulate(indexes.byColorAndSize), [cup4, cup1, cup7, cup5, cup2, cup3, cup6]);
   assert.deepEqual(accumulate(indexes.bySize), [cup4, cup5, cup1, cup2, cup3, cup6, cup7]);
