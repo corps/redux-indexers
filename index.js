@@ -255,16 +255,3 @@ var Indexer = (function () {
     return Indexer;
 }());
 exports.Indexer = Indexer;
-var groupKeyIndexer = new Indexer("group");
-groupKeyIndexer.addIndex("group", function (v) { return v; });
-function getUniqueKeys(keyer, values) {
-    var groupIndex = groupKeyIndexer.empty();
-    for (var _i = 0, values_1 = values; _i < values_1.length; _i++) {
-        var value = values_1[_i];
-        groupIndex = groupKeyIndexer.update(groupIndex, [keyer(value)]);
-    }
-    return groupIndex.group.map(function (_a) {
-        var _ = _a[0], v = _a[1];
-        return v;
-    });
-}

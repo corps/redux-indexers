@@ -289,16 +289,3 @@ export class Indexer<V, I extends IndexStore<V>> {
   }
 }
 
-type GroupKeyIndex = { group: Index<any[]> }
-const groupKeyIndexer = new Indexer<any[], GroupKeyIndex>("group");
-groupKeyIndexer.addIndex("group", v => v);
-
-function getUniqueKeys<V>(keyer: Keyer<V>, values: V[]): any[][] {
-  let groupIndex = groupKeyIndexer.empty();
-  for (let value of values) {
-    groupIndex = groupKeyIndexer.update(groupIndex, [keyer(value)]);
-  }
-
-  return groupIndex.group.map(([_, v]) => v);
-}
-
