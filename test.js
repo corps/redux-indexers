@@ -153,17 +153,6 @@ test("add / remove", function () {
     assert.deepEqual(accumulate(indexes.bySize), [cup3, cup4], "keeps cups organized by size");
     assert.deepEqual(accumulate(indexes.bySizeOfColorBiggest), [cup3, cup4], "keeps cups organized by size of per color biggest");
 });
-test("getByPk", function () {
-    var cup1 = firstCup;
-    var cup2 = differentColorThan(cup1);
-    var cup3 = largeCupThan(cup2);
-    var cup4 = similarCup(cup3);
-    assertReferenceChanges(indexer.update(indexes, [cup2, cup3, cup1]));
-    assert.equal(indexer.getByPk(indexes, [cup4.id]), null);
-    assert.strictEqual(indexer.getByPk(indexes, [cup2.id]), cup2);
-    assert.strictEqual(indexer.getByPk(indexes, [cup1.id]), cup1);
-    assert.strictEqual(indexer.getByPk(indexes, [cup3.id]), cup3);
-});
 test("update managing indexes", function () {
     var cup1 = firstCup;
     var cup2 = differentColorThan(cup1);

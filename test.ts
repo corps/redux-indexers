@@ -204,20 +204,6 @@ test("add / remove", () => {
   assert.deepEqual(accumulate(indexes.bySizeOfColorBiggest), [cup3, cup4], "keeps cups organized by size of per color biggest");
 });
 
-test("getByPk", () => {
-  const cup1 = firstCup;
-  const cup2 = differentColorThan(cup1);
-  const cup3 = largeCupThan(cup2);
-  const cup4 = similarCup(cup3);
-
-  assertReferenceChanges(indexer.update(indexes, [cup2, cup3, cup1]));
-
-  assert.equal(indexer.getByPk(indexes, [cup4.id]), null);
-  assert.strictEqual(indexer.getByPk(indexes, [cup2.id]), cup2);
-  assert.strictEqual(indexer.getByPk(indexes, [cup1.id]), cup1);
-  assert.strictEqual(indexer.getByPk(indexes, [cup3.id]), cup3);
-});
-
 test("update managing indexes", () => {
   let cup1 = firstCup;
   let cup2 = differentColorThan(cup1);

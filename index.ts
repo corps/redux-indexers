@@ -43,14 +43,13 @@ export type Entry<V> = [any[], V];
 export type Index<V> = Entry<V>[];
 export type IndexStore<V> = { [k: string]: Index<V> }
 export type Keyer<V> = (v: V) => any[];
-export type IndexIterator<V> = () => V | 0
-export type GroupReducer<V> = (iter: IndexIterator<V>, reverseIter: IndexIterator<V>) => V | 0
+export type IndexIterator<V> = () => V | void
+export type GroupReducer<V> = (iter: IndexIterator<V>, reverseIter: IndexIterator<V>) => V | void
 
 function cmpKeyToEntry(a: any[], b: Entry<any>) {
   return arrayCmp(a, b[0]);
 }
 
-// export type IndexUpdater<K, V> = (prev: V, )
 export class Indexer<V, I extends IndexStore<V>> {
   private indexKeyers = {} as { [k: string]: Keyer<V> };
   private indexDependentGroup = {} as { [k: string]: string };
@@ -115,7 +114,7 @@ export class Indexer<V, I extends IndexStore<V>> {
 
     let uniqueValues = uniqueIndex(this.indexKeyers[this.mainIndexName], values);
     uniqueValues.forEach(v => {
-      let existing = this.getByPk(indexes, v[0]);
+      let existing = Indexer.getFirstMatching(indexes[this.mainIndexName], v[0]);
       if (existing) oldValues.push(existing);
       newValues.push(v[1]);
     });
@@ -155,8 +154,20 @@ export class Indexer<V, I extends IndexStore<V>> {
     return index.slice(startIdx, endIdx).map(([_, value]) => value);
   }
 
-  getByPk(indexes: I, key: any[]): V | 0 {
-    return Indexer.getFirstMatching(indexes[this.mainIndexName], key);
+  static getAllUniqueMatchingAnyOf<V>(index: Index<V>, keys: any[][]): V[] {
+    let result = [] as V[];
+    let retrievedIdxs = new Int8Array(index.length);
+
+    for(let key of keys) {
+       let {startIdx, endIdx} = Indexer.getRangeFrom(index, key, key.concat([Infinity]));
+       for(; startIdx < endIdx; ++startIdx) {
+         if (retrievedIdxs[startIdx]) continue;
+         retrievedIdxs[startIdx] = 1;
+         result.push(index[startIdx][1]);
+       }
+    }
+
+    return result;
   }
 
   static getRangeFrom(index: Index<any>, startKey: any[] = null, endKey: any[] = null) {
@@ -165,20 +176,22 @@ export class Indexer<V, I extends IndexStore<V>> {
 
     if (startKey == null) {
       startIdx = 0;
-    } else {
+    }
+    else {
       startIdx = bisect<Entry<any>, any[]>(index, startKey, cmpKeyToEntry);
     }
 
     if (endKey == null) {
       endIdx = index.length;
-    } else {
+    }
+    else {
       endIdx = bisect<Entry<any>, any[]>(index, endKey, cmpKeyToEntry);
     }
 
     return {startIdx, endIdx};
   }
 
-  static getFirstMatching<V>(index: Index<V>, key: any[]): V | 0 {
+  static getFirstMatching<V>(index: Index<V>, key: any[]): V | void {
     let iter = Indexer.iterator(index, key, key.concat([Infinity]));
     return iter();
   }
@@ -209,20 +222,20 @@ export class Indexer<V, I extends IndexStore<V>> {
           let updateGroupKey = updateGroup[0];
           const prevGroupIndex = oldIndexes[groupIndexName];
           let iter = Indexer.iterator(prevGroupIndex,
-            updateGroupKey,
-            updateGroupKey.concat([Infinity]));
+              updateGroupKey,
+              updateGroupKey.concat([Infinity]));
           let reverseIter = Indexer.reverseIter(prevGroupIndex,
-            updateGroupKey.concat([Infinity]),
-            updateGroupKey);
+              updateGroupKey.concat([Infinity]),
+              updateGroupKey);
           let remove = reducer(iter, reverseIter);
 
           const curGroupIndex = indexes[groupIndexName];
           iter = Indexer.iterator(curGroupIndex,
-            updateGroupKey,
-            updateGroupKey.concat([Infinity]));
+              updateGroupKey,
+              updateGroupKey.concat([Infinity]));
           reverseIter = Indexer.reverseIter(curGroupIndex,
-            updateGroupKey.concat([Infinity]),
-            updateGroupKey);
+              updateGroupKey.concat([Infinity]),
+              updateGroupKey);
           let add = reducer(iter, reverseIter);
 
           if (remove === add) continue;
@@ -274,13 +287,12 @@ export class Indexer<V, I extends IndexStore<V>> {
   }
 }
 
-function uniqueIndex<V>(keyer: Keyer<V>, values: V[]): Index<V> {
-  let result = [] as Index<V>;
+function uniqueIndex<V>(keyer: Keyer<V>, values: V[], index = [] as Index<V>): Index<V> {
   for (let value of values) {
     let key = keyer(value);
-    let {startIdx, endIdx} = Indexer.getRangeFrom(result, key, key.concat([null]));
-    result.splice(startIdx, endIdx - startIdx, [key, value]);
+    let {startIdx, endIdx} = Indexer.getRangeFrom(index, key, key.concat([null]));
+    index.splice(startIdx, endIdx - startIdx, [key, value]);
   }
 
-  return result;
+  return index;
 }

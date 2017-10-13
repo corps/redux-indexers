@@ -2,17 +2,12 @@
   system ? builtins.currentSystem,
   nodejs ? pkgs.nodejs }:
 
-let 
-  npmInputs = import ./nix-npm/packages.nix {
-    inherit pkgs;
-    inherit system;
-    inherit nodejs;
-    packages = [ "typescript" ];
-  };
-in
-
 with pkgs;
 stdenv.mkDerivation {
   name = "redux-indexers";
-  buildInputs = npmInputs;
+  buildInputs = [ nodejs ];
+
+  shellHook = ''
+    PATH=$PWD/node_modules/.bin:$PATH
+  '';
 }

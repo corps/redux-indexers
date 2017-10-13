@@ -107,7 +107,7 @@ var Indexer = (function () {
         var newValues = [];
         var uniqueValues = uniqueIndex(this.indexKeyers[this.mainIndexName], values);
         uniqueValues.forEach(function (v) {
-            var existing = _this.getByPk(indexes, v[0]);
+            var existing = Indexer.getFirstMatching(indexes[_this.mainIndexName], v[0]);
             if (existing)
                 oldValues.push(existing);
             newValues.push(v[1]);
@@ -149,8 +149,20 @@ var Indexer = (function () {
             return value;
         });
     };
-    Indexer.prototype.getByPk = function (indexes, key) {
-        return Indexer.getFirstMatching(indexes[this.mainIndexName], key);
+    Indexer.getAllUniqueMatchingAnyOf = function (index, keys) {
+        var result = [];
+        var retrievedIdxs = new Int8Array(index.length);
+        for (var _i = 0, keys_1 = keys; _i < keys_1.length; _i++) {
+            var key = keys_1[_i];
+            var _a = Indexer.getRangeFrom(index, key, key.concat([Infinity])), startIdx = _a.startIdx, endIdx = _a.endIdx;
+            for (; startIdx < endIdx; ++startIdx) {
+                if (retrievedIdxs[startIdx])
+                    continue;
+                retrievedIdxs[startIdx] = 1;
+                result.push(index[startIdx][1]);
+            }
+        }
+        return result;
     };
     Indexer.getRangeFrom = function (index, startKey, endKey) {
         if (startKey === void 0) { startKey = null; }
@@ -249,13 +261,13 @@ var Indexer = (function () {
     return Indexer;
 }());
 exports.Indexer = Indexer;
-function uniqueIndex(keyer, values) {
-    var result = [];
+function uniqueIndex(keyer, values, index) {
+    if (index === void 0) { index = []; }
     for (var _i = 0, values_1 = values; _i < values_1.length; _i++) {
         var value = values_1[_i];
         var key = keyer(value);
-        var _a = Indexer.getRangeFrom(result, key, key.concat([null])), startIdx = _a.startIdx, endIdx = _a.endIdx;
-        result.splice(startIdx, endIdx - startIdx, [key, value]);
+        var _a = Indexer.getRangeFrom(index, key, key.concat([null])), startIdx = _a.startIdx, endIdx = _a.endIdx;
+        index.splice(startIdx, endIdx - startIdx, [key, value]);
     }
-    return result;
+    return index;
 }
