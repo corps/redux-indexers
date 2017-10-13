@@ -1,3 +1,4 @@
+declare module "redux-indexers" {
 export declare function bisect<T, E>(array: T[], e: E, cmp: (a: E, b: T) => number, l?: number, r?: number): number;
 export declare function arrayCmp(a: any[], b: any[]): number;
 export declare function numberCmp(a: number, b: number): number;
@@ -38,4 +39,5 @@ export declare class Indexer<V, I extends IndexStore<V>> {
     private strictValueKeyOf(indexName, value);
     private addToIndex(index, indexName, v);
     private removeFromIndex(index, indexName, v);
+}
 }
