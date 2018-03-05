@@ -86,7 +86,7 @@ As an idea for how ordering works, check out this reference:
 
 Now, let's actually create some redux state!  Indexer objects themselves do not actually store any state -- they merely contain the logic for managing a group of indexes.  But, the indexer provides a handy method to get our initial, empty state!
 
-``typescript
+```typescript
 let indexes = indexer.empty();
 ```
 
